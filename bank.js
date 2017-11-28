@@ -2,7 +2,9 @@
  * launchMenu
  *
  * A function that launches a menu using window.prompt, where the user can pick one option
- * by typing in the corresponding number
+ * by typing in the corresponding number. launchMenu doesn't just get user input but it
+ * also expects you to provide information what function to run if user picks a each option
+ * and then runs the appropriate one based on user choice.
  *
  * @params
  *     menuOptions (array) - an array of objects, each with the following properties:
@@ -10,69 +12,27 @@
  *       run (function) - a reference to the function which is to be executed when the user picks
  *           the given option
  *     intro (string, optional) - text to be added at the beginning of the dialog
+ *
+ * @return Object {
+ *         choice (number: integer): which option the user chose
+ *         returnedValue (any): whatever the called function returned
+ *     }
  */
-function launchMenu(menuOptions, intro) {
+function launchMenu(menuOptions, intro = 'Choose one of the following:\n') {
 	/**
 	* getChoice
 	*
 	* A launchMenu's inner function, which is responsible for displaying the menu
-	* and obtaining user input
+	* and obtaining user input. It doesn't take any arguments, since because it sits
+	* inside launchMenu, it can directly see and use launchMenu's parameters.
 	*
-	* @params
-	*     menuOptions (array) - as in launchMenu - we could in fact omit it, because since getChoice is
-	*         a sub-function within the launchMenu function, it also has direct access to launchMenu's
-	*         parameters (which work like local variables). As it is, the getChoice function is defined
-	*         within the scope of launchMenu only for clearer organization. If we took it out and declared
-	*         it as an independent function in the global scope:
-	*             // example A
-	*             function getChoice(menuOptions) {
-	*                 ... // do something with menuOptions
-	*             }
-	*             function launchMenu(menuOptions) {
-	*                 var choice = getChoice(menuOptions);
-	*                 ... // run the appropriate function based on choice
-	*             }
-	*         it would work just as well, because even though it couldn't directly see launchMenu's
-	*         parameters, it would still be passed the necessary information when called via its parameter.
-	*         On the other hand, if we remove the menuOptions parameter:
-	*             // example B
-	*             function launchMenu(menuOptions) {
-	*                 function getChoice() {
-	*                     ... // do something with menuOptions
-	*                 }
-	*                 var choice = getChoice();
-	*                 ... // run the appropriate function based on choice
-	*             }
-	*         then the function works only as long as it can glance its enclosing function's (launchMenu's)
-	*         parameter menuOptions. Taken out of the context:
-	*             function getChoice() {
-	*                 ... // do something with menuOptions... wait, with what?!
-	*                     // As seen from here, a variable menuOptions doesn't exist
-	*             }
-	*             function launchMenu(menuOptions) {
-	*                 var choice = getChoice();
-	*                 ... // run the appropriate function based on choice
-	*             }
-	*         getChoice would produce an error, since it couldn't see menuOptions, which is launchMenu's
-	*         parameters, which works like a local variable and is, therefore, invisible outside the function
-	*         it was defined within. This would not necessarily be bad as getChoice probably won't be used
-	*         anywhere outside launchMenu. I don't know yet which way is considered better but it
-	*         did it the way I did just to make an example. I guess it depends on the paradigm:
-	*              - in FUNCTIONAL programming, functions are supposed to be independent entities that don't know
-	*                anything they weren't explicitly told (via arguments), so we would probably code it like
-	*                in example A,
-	*              - in PROCEDURAL programming functions are used just to group code, and there's no prohibition
-	*                against them reading or modifying variables external to them, so either way would be acceptable
-	*                but example B would be more natural.
-	*         Below, in the actual code, I used something in between. Why? Because I felt like, and fuck you.
-	*
-	* @return option selected by user (a number within the range from 1 to menuOptions.length)
+	* @return the number of the option the user picked
 	*/
-	function getChoice(menuOptions) {
+	function getChoice() {
 		// Using a loop to repeat the process if user enters an invalid value
 		do {
 			// Initialize the message string
-			var message = intro + 'Choose one of the following:\n';
+			var message = intro;
 			/*
 			 * For each element in menuOptions, add its representation to message.
 			 * This is equivalent to:
@@ -96,15 +56,16 @@ function launchMenu(menuOptions, intro) {
 		// When choice is finally valid, return its value to the caller
 		return choice;
 	}
-	// Obtain user choice (number between 1 and menuOptions.length)
-	var choice = getChoice(menuOptions);
-	// Find the corresponding element in menuOptions (need to subtract 1 from choice because array
-	// indices start with zero while the user chose a number from a list starting with 1)
-	// and run the function associated with it.
-	// The function should return true if it wants the menu not to show again after it ends.
-	do {
-		var stop = menuOptions[choice - 1].run();
-	} while (!stop);
+
+	// Here begins launchMenu's code execution
+	
+	// launchMenu will return an object with information on what happened
+	return {
+		// Obtain user choice (number between 1 and menuOptions.length) and return it as .choice
+		choice: getChoice(),
+		// run the appropriate function and pass on its returned value via .returnedValue
+		returnedValue: menuOptions[choice - 1].run();
+	};
 }
 
 /**
@@ -118,19 +79,19 @@ function launchMenu(menuOptions, intro) {
  *
  * @return random integer x where (min <= x <= max)
  */
- function randomInteger(min, max) {
- 	// If the caller provided no arguments, assume range [0..1]
- 	if (min == undefined) {
- 		min = 0;
- 		max = 1;
- 	// If the called provided just one argument, assume it to be the max value, and default to min = 1
- 	} else if (max == undefined) {
- 		max = min;
- 		min = 0;
- 	}
- 	// Generate the number and return it to the caller
- 	return Math.floor(Math.random() * (max - min + 1) + min);
- }
+function randomInteger(min, max) {
+	// If the caller provided no arguments, assume range [0..1]
+	if (min == undefined) {
+		min = 0;
+		max = 1;
+	// If the called provided just one argument, assume it to be the max value, and default to min = 1
+	} else if (max == undefined) {
+		max = min;
+		min = 0;
+	}
+	// Generate the number and return it to the caller
+	return Math.floor(Math.random() * (max - min + 1) + min);
+}
 
 /**
 * generateRandomString
@@ -292,9 +253,34 @@ function bankApp() {
 	}
 
 	function manageAccount(account) {
-		var accountMenu = [{
-			name: ''
-		}]
+		var accountMenu = [
+			{
+				name: 'Make a transfer',
+				run: function () {
+					if (account.balance == 0) alert('Nothing you could transfer :-(');
+				}
+			},
+			{
+				name: 'Make some money magically appear in my account!',
+				run: function () {
+					var amount = Number(prompt('Ok, how much would you like to get?'));
+					if (isNaN(amount)) {
+						alert('Doesn\'t seem like a valid number, bro.');
+					} else {
+						account.balance += amount;
+					}
+				}
+			},
+			{
+				name: 'Log out',
+				run: function () {
+					// Just return true so the account menu stops
+					return true;
+				}
+			}
+		];
+		launchMenu(accountMenu, 'Hello, ' + account.owner + '!\nYour current balance is: ' + account.balance + '\n\n' +
+			'What would you like to do?\n');
 	}
 
 	var mainMenu = [{
@@ -311,12 +297,12 @@ function bankApp() {
 				alert('See you next time!');
 				// Return true so the menu that launched this function will know
 				// not to show back again.
-				return true; 
+				return 'exit'; 
 			}
 		}
 	];
 
-	launchMenu(mainMenu);
+	do {} while (launchMenu(mainMenu).returnedValue != 'exit');
 }
 
 bankApp();
