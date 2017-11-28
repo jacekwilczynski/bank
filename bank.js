@@ -8,9 +8,9 @@
  *
  * @params
  *     menuOptions (array) - an array of objects, each with the following properties:
- *       name (string) - the name of the feature as it is to be displayed in the menu
- *       run (function) - a reference to the function which is to be executed when the user picks
- *           the given option
+ *       optionLabel (string) - the name of the feature as it is to be displayed in the menu
+ *       functionToRunIfUserChoosesThis (function) - a reference to the function which is to
+ *           be executed when the user picks the given option
  *     intro (string, optional) - text to be added at the beginning of the dialog
  *
  * @return Object {
@@ -47,7 +47,7 @@ function launchMenu(menuOptions, intro = 'Choose one of the following:\n') {
 	         */
 			menuOptions.forEach(function (option, index) {
 				// Append a line like '1) First option'
-				message += (index + 1) + ') ' + option.name + '\n';
+				message += (index + 1) + ') ' + option.optionLabel + '\n';
 			});
 			// Display the message and obtain user input (string), and try to convert it to a number
 			var choice = Number(prompt(message));
@@ -59,12 +59,14 @@ function launchMenu(menuOptions, intro = 'Choose one of the following:\n') {
 
 	// Here begins launchMenu's code execution
 	
+	// Obtain user input
+	var choice = getChoice();
 	// launchMenu will return an object with information on what happened
 	return {
-		// Obtain user choice (number between 1 and menuOptions.length) and return it as .choice
-		choice: getChoice(),
+		// return the number the user chose it as .choice
+		choice: choice,
 		// run the appropriate function and pass on its returned value via .returnedValue
-		returnedValue: menuOptions[choice - 1].run();
+		returnedValue: menuOptions[choice - 1].functionToRunIfUserChoosesThis()
 	};
 }
 
@@ -161,17 +163,33 @@ function bankApp() {
 	 * This is, of course, going to be an array of objects of the Account type (or class),
 	 * i.e. objects created with the use of the constructor Account.
 	 */
-	var accounts = [];
+	var accounts = load();
 
 	/**
-	* accounts.find
+	* load
 	*
-	* accounts is an array, but arrays are also objects, so we can add methods to them.
-	* This method searches through the array for all objects that have a given property
-	* equal to a given value, e.g.
-	*     accounts.find('owner', 'John Doe');
+	* Loads account data from local storage, if if there's none, returns an empty array
+	*/
+	function load() {
+		return JSON.parse(localStorage.getItem('bankApp')) || [];
+	}
+
+	/**
+	* save
+	*
+	* Saves accounts in local storage in the JSON format
+	*/
+	function save() {
+		localStorage.setItem('bankApp', JSON.stringify(accounts));
+	}
+
+	/**
+	* findAccount
+	*
+	* Searches through accounts for all that have a given property equal to a given value, e.g.
+	*     findAccount('owner', 'John Doe');
 	* returns an array of all accounts assigned to the name John Doe, or:
-	*     accounts.find('login', 'killa123');
+	*     findAccount('login', 'killa123');
 	* returns an array of accounts with the login 'killa123'. Of course, this array should
 	* have only one element, since there shouldn't be more than one account with the same login.
 	*
@@ -180,21 +198,23 @@ function bankApp() {
 	*     value (any) - the value that the property needs to have
 	*
 	* @return an array of objects (of type/class Account) for which this.property == value
-	*     (if no matches were found, an empty array is returned)
+	*     (if no matches were found, the boolean value false is returned)
 	*/
-	accounts.find = function(property, value) {
-		console.log('Searching for account with ' + property + ' equal to ' + value);
+	function findAccount(property, value) {
 		// The filter method, which all arrays have, goes through the entire array and launches
 		// a given function passing the current element as an argument. It returns a sub-array
 		// of all the elements for whom the function returned true.
-		return accounts.filter(function (account) {
-			console.log(account);
+		var found = accounts.filter(function (account) {
 			// Here I'm using the alternative, array-like syntax to access an object's property,
 			// i.e. I've written account[property] (which e.g. if property == 'login', translates to
 			// account['login']) instead of account.property because if account actually had a
 			// property called 'property', it would be ambiguous which one we mean
 			return account[property] == value;
-		})
+		});
+		// If no accounts matched the criterion, return false
+		if (found.length == 0) return null;
+		// Otherwise, return the array containing the matching accounts
+		return found;
 	};
 
 	/**
@@ -208,14 +228,19 @@ function bankApp() {
 	* @return the generated account number
 	*/
 	function generateAccountNumber(length) {
-		return generateRandomString(length, digits);
+		do {
+			// Generate a number
+			var proposedNumber = generateRandomString(length, digits);
+		// If there already is an account with such a number, try again
+		} while (findAccount('accountNumber', proposedNumber));
+		return proposedNumber;
 	}
 
 	function signUp() {
 		// Obtain user input for the login
 		var login = prompt('Enter a login you\'d like to use to sign into our system:');
-		// Search for an account with the given log in, and if you find one:
-		if (accounts.find('login', login).length > 0) {
+		// Search for an account with the given log in and if you found any...
+		if (findAccount('login', login)) {
 			// Tell the user the login's taken
 			alert('Account with this login already exists.');
 			// Break out of the signUp function
@@ -232,18 +257,23 @@ function bankApp() {
 		// so the user can easily copy the number to the clipboard.
 		// (accountNumber has already been generated in the constructor)
 		prompt('Great! Your new account number is: ', account.accountNumber);
+		save();
 	}
 
 	function signIn() {
-		// Obtain login from user and find the right account
-		var account = accounts.find('login', prompt('Enter your login:'))[0];
+		// Obtain login from user and find all accounts that have this login (should be just one)
+		var found = findAccount('login', prompt('Enter your login:'));
 		// If there's no account with this login, alert the user and quit the function
-		if (account == undefined) {
+		// (undefined or null converted to boolean yields false, therefore no need to
+		// write if (account == undefined) {...})
+		if (!found) {
 			alert('Sorry, but there is no account with such login.');
 			return;
 		}
-		// Obtain the password as check if it matches
-		if (account.password == prompt('Enter you password:')) {
+		// Pick out the first (and hopefully the only) account that had the given login
+		var account = found[0];
+		// Obtain the password and check if it matches
+		if (prompt('Enter you password:') == account.password) {
 			// If so, go to account management
 			manageAccount(account);
 		} else {
@@ -253,56 +283,83 @@ function bankApp() {
 	}
 
 	function manageAccount(account) {
-		var accountMenu = [
+		// Launch the account menu at least once, and keep re-launching it until
+		// it returns {returnedValue: 'exit'}
+		do {} while (launchMenu([
 			{
-				name: 'Make a transfer',
-				run: function () {
-					if (account.balance == 0) alert('Nothing you could transfer :-(');
+				optionLabel: 'Make a transfer',
+				functionToRunIfUserChoosesThis: function () {
+					if (account.balance <= 0) {
+						alert('Nothing you could transfer :-(');
+						return;
+					}
+					var amount = Number(prompt('How much would you like to transfer?'));
+					if (account.balance < amount) {
+						alert('Account balance too low.');
+						return;
+					}
+					var foundAccounts = findAccount('accountNumber', prompt('Enter the recipient\'s account number:'));
+					if (!foundAccounts) {
+						alert('No such account.');
+						return;
+					}
+					var targetAccount = foundAccounts[0];
+					if (confirm('Confirm transfer ' + amount + ' to ' + targetAccount.owner + '?')) {
+						account.balance -= amount;
+						targetAccount.balance += amount;
+						save();
+					}
 				}
 			},
 			{
-				name: 'Make some money magically appear in my account!',
-				run: function () {
+				optionLabel: 'Make some money magically appear in my account!',
+				functionToRunIfUserChoosesThis: function () {
 					var amount = Number(prompt('Ok, how much would you like to get?'));
 					if (isNaN(amount)) {
 						alert('Doesn\'t seem like a valid number, bro.');
 					} else {
 						account.balance += amount;
+						save();
 					}
 				}
 			},
 			{
-				name: 'Log out',
-				run: function () {
-					// Just return true so the account menu stops
-					return true;
+				optionLabel: 'Log out',
+				functionToRunIfUserChoosesThis: function () {
+					// This will get passed back to us via launchMenu().returnedValue
+					return 'exit';
 				}
 			}
-		];
-		launchMenu(accountMenu, 'Hello, ' + account.owner + '!\nYour current balance is: ' + account.balance + '\n\n' +
-			'What would you like to do?\n');
+		], 'Hello, ' + account.owner + '!\nThis account\'s number is: ' + account.accountNumber + '\n' +
+			'Your current balance is: ' + account.balance + '\n\n' +
+			'What would you like to do?\n').returnedValue != 'exit');
 	}
 
-	var mainMenu = [{
-			name: 'Log into account',
-			run: signIn
+	// launch the main menu using the launchMenu function
+	do {} while (launchMenu([{
+			optionLabel: 'Log into account',
+			functionToRunIfUserChoosesThis: signIn
 		},
 		{
-			name: 'Create new account',
-			run: signUp
+			optionLabel: 'Create new account',
+			functionToRunIfUserChoosesThis: signUp
 		},
 		{
-			name: 'Exit',
-			run: function () {
+			optionLabel: 'Hack my way into the system and clear all account data',
+			functionToRunIfUserChoosesThis: function () {
+				accounts = [];
+				localStorage.removeItem('bankApp');
+			}
+		},
+		{
+			optionLabel: 'Exit',
+			functionToRunIfUserChoosesThis: function () {
 				alert('See you next time!');
-				// Return true so the menu that launched this function will know
-				// not to show back again.
+				// This will get passed back to us via launchMenu().returnedValue
 				return 'exit'; 
 			}
 		}
-	];
-
-	do {} while (launchMenu(mainMenu).returnedValue != 'exit');
+	]).returnedValue != 'exit');
 }
 
 bankApp();
