@@ -142,21 +142,6 @@ var digits = '0123456789';
 */
 function bankApp() {
 	/**
-	* Account
-	*
-	* This is a constructor on the basis of which client accounts will be created.
-	*/
-	function Account(login) {
-		this.login = login;
-		this.password = ''; // will be assigned later
-		this.owner = ''; // owner's name, will be assigned later
-		this.balance = 0;
-		// Run generateAccountNumber (function defined below) to assign a random
-		// but unique number to the account
-		this.accountNumber = generateAccountNumber(4 /* number of digits */);
-	}
-
-	/**
 	 * accounts
 	 *
 	 * An array which is going to store references to all accounts in our bank.
@@ -246,17 +231,19 @@ function bankApp() {
 			// Break out of the signUp function
 			return;
 		}
-		// Create a new Account object (without putting it in the accounts array yet)
-		var account = new Account(login);
-		// The get some more data
-		account.owner = prompt('Enter your full name:');
-		account.password = prompt('Define a password for signing in:');
-		// Add the newly created account to the database
-		accounts.push(account);
+		// Create a new object that will store account data
+		var account = {
+			login: login,
+			owner: prompt('Enter your full name:'),
+			password: prompt('Define a password for signing in:'),
+			balance: 0,
+			accountNumber: generateAccountNumber(4 /* number of digits */)
+		}
 		// Inform the client what's her new account number using prompt with default value
 		// so the user can easily copy the number to the clipboard.
-		// (accountNumber has already been generated in the constructor)
 		prompt('Great! Your new account number is: ', account.accountNumber);
+		// Add the newly created account to the database
+		accounts.push(account);
 		save();
 	}
 
